@@ -23,6 +23,7 @@
 
 #import "SDURLCache.h"
 #import <CommonCrypto/CommonDigest.h>
+#include <sys/xattr.h>
 
 #define kAFURLCachePath @"SDNetworkingURLCache"
 #define kAFURLCacheMaintenanceTime 5ull
@@ -515,6 +516,22 @@ static dispatch_queue_t get_disk_io_queue() {
                    withIntermediateDirectories:YES
                                     attributes:nil
                                          error:NULL];
+            
+            //exclude from backup
+            NSURL *folderPathUrl = [NSURL fileURLWithPath:_diskCachePath];
+//            NSError *error = nil;
+//            BOOL success = [folderPathUrl setResourceValue: [NSNumber numberWithBool:YES] forKey:NSURLIsExcludedFromBackupKey error:&error];
+//            if (! success) {
+//                NSLog(@"Error excluding %@ from backup %@", [folderPathUrl lastPathComponent], error);
+//            }
+            
+            const char* filePath = [[folderPathUrl path] fileSystemRepresentation];
+            const char* attrName = "com.apple.MobileBackup";
+            u_int8_t attrValue = 1;
+            int result = setxattr(filePath, attrName, &attrValue, sizeof(attrValue), 0, 0);
+            if (result != 0) {
+                NSLog(@"Error excluding %@ from backup", [folderPathUrl lastPathComponent]);
+            }
         }
     });
 }
@@ -634,7 +651,8 @@ static dispatch_queue_t get_disk_io_queue() {
 #pragma mark SDURLCache
 
 + (NSString *)defaultCachePath {
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES);
+    //use documents directory
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     return [[paths objectAtIndex:0] stringByAppendingPathComponent:kAFURLCachePath];
 }
 
@@ -645,6 +663,7 @@ static dispatch_queue_t get_disk_io_queue() {
         self.minCacheInterval = kAFURLCacheInfoDefaultMinCacheInterval;
         self.diskCachePath = path;
         self.ignoreMemoryOnlyStoragePolicy = NO;
+        self.doCacheAnyway = NO;
 	}
     
     return self;
@@ -675,8 +694,10 @@ static dispatch_queue_t get_disk_io_queue() {
             NSDate *expirationDate = [SDURLCache expirationDateFromHeaders:headers
                                                             withStatusCode:((NSHTTPURLResponse *)cachedResponse.response).statusCode];
             if (!expirationDate || [expirationDate timeIntervalSinceNow] - _minCacheInterval <= 0) {
-                // This response is not cacheable, headers said
-                return;
+                if (!_doCacheAnyway) {
+                    // This response is not cacheable, headers said
+                    return;
+                }
             }
         }
         
@@ -778,7 +799,7 @@ static dispatch_queue_t get_disk_io_queue() {
 - (void)dealloc {
     if(_maintenanceTimer) {
         dispatch_source_cancel(_maintenanceTimer);
-        dispatch_release(_maintenanceTimer);
+//        dispatch_release(_maintenanceTimer);
     }
     _diskCachePath = nil;
     _diskCacheInfo = nil;
@@ -786,6 +807,7 @@ static dispatch_queue_t get_disk_io_queue() {
 
 @synthesize minCacheInterval = _minCacheInterval;
 @synthesize ignoreMemoryOnlyStoragePolicy = _ignoreMemoryOnlyStoragePolicy;
+@synthesize doCacheAnyway = _doCacheAnyway;
 @synthesize allowCachingResponsesToNonCachedRequests = _allowCachingResponsesToNonCachedRequests;
 @synthesize diskCachePath = _diskCachePath;
 @synthesize diskCacheInfo = _diskCacheInfo;

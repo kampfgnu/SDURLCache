@@ -49,6 +49,11 @@
 @property (nonatomic, assign) BOOL allowCachingResponsesToNonCachedRequests;
 
 /*
+ * if yes, expiration date of response header will be ignored and saved to disk anyway
+ */
+@property (nonatomic, assign) BOOL doCacheAnyway;
+
+/*
  * Returns a default cache director path to be used at cache initialization. The generated path directory
  * will be located in the application's cache directory and thus won't be synced by iTunes.
  */
@@ -64,5 +69,7 @@
  * Has no effect on the on-disk cache.
  */
 - (void)removeAllCachedResponsesInMemory;
+
++ (NSDate *)dateFromHttpDateString:(NSString *)httpDate;
 
 @end
