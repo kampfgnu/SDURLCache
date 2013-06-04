@@ -65,4 +65,7 @@
  */
 - (void)removeAllCachedResponsesInMemory;
 
++ (NSString *)cacheKeyForURL:(NSURL *)url;
+- (NSString *)cacheFilepathForURL:(NSURL *)url;
+
 @end
